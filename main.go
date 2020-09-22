@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -78,7 +79,22 @@ func main() {
 
 	settings := ParseConf(configContent)
 	fmt.Println(time.Now(), "load config", confFile)
-	fmt.Printf("settings: %v", settings)
+	fmt.Printf("settings: %v\n", settings)
+
+	storage := NewStorageCluster(settings)
+	clusterID := 0
+	truckPath := "DV/FY/mLbV/bsball-012_0/be6ab7adf66511eaa49fecf4bbcb80b4.t"
+	offset := uint32(1434384)
+	var objectID [16]byte
+	uuidstr := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	hex.Decode(objectID[:], []byte(uuidstr))
+
+	err = storage.ResetTruckBlockHeaders(clusterID, truckPath, offset, objectID)
+	if err != nil {
+		fmt.Printf("err: %v\n", err)
+	}
+
+	storage.Shutdown()
 }
 
 var ErrStaleNFSFileHandle error = errors.New("stale NFS file handle")
@@ -291,8 +307,8 @@ func (stors *StorageCluster) Shutdown() {
 	}
 }
 
-func (stors *StorageCluster) RemoveTruckBlock( /*logger Logger,*/ clusterId int, truckPath string,
-	offset uint32) (err error) {
+func (stors *StorageCluster) ResetTruckBlockHeaders( /*logger Logger,*/ clusterId int, truckPath string,
+	offset uint32, objectID [16]byte) (err error) {
 	cluster, err := stors.GetClusterById( /*logger,*/ clusterId)
 	if err != nil {
 		return err
@@ -310,7 +326,7 @@ func (stors *StorageCluster) RemoveTruckBlock( /*logger Logger,*/ clusterId int,
 	}()
 	//logger.Debugf("Deleting truck block, cluster=<%d>, path=<%s>", clusterId, truckPath)
 	fmt.Printf("Deleting truck block, cluster=<%d>, path=<%s>\n", clusterId, truckPath)
-	err = truck.DeleteBlock(offset)
+	err = truck.ResetBlockHeaders(offset, objectID)
 	if os.IsNotExist(err) {
 		//logger.Debugf("truck block path=[%s], truckOffset=[%d] not exist", truckPath, offset)
 		fmt.Printf("truck block path=[%s], truckOffset=[%d] not exist\n", truckPath, offset)
@@ -318,7 +334,7 @@ func (stors *StorageCluster) RemoveTruckBlock( /*logger Logger,*/ clusterId int,
 	}
 	if err != nil {
 		//logger.Warnf("failed to delete truck block path=[%s], truckOffset=[%d]", truckPath, offset)
-		fmt.Printf("failed to delete truck block path=[%s], truckOffset=[%d]\n", truckPath, offset)
+		fmt.Printf("failed to reset truck block headers path=[%s], truckOffset=[%d]\n", truckPath, offset)
 	}
 	return err
 }
